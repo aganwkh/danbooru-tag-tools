@@ -1,8 +1,15 @@
 # Danbooru Tag Tools
 
-人物插画提示词工具链：通过 Danbooru API 检索标签，由支持 Skill 的 AI 客户端构思和组装英文描述与 tag。支持完整场景、局部修改、标签及同义候选查询；不直接生成图片。
+面向 Anime 图像工作流的 Danbooru 标签检索与提示词组装工具。它提供本地 MCP 服务器、配套 Skill 和 CLI：从自然语言中识别需要确认的视觉概念，查询真实 Danbooru tag，再由 AI 客户端组装英文叙事与已验证的 tag block。
 
-不指定单一生图底模，Skill 面向支持 Danbooru tag、自然语言或两者混合输入的 Anime 类图像模型。完整场景默认输出 3 段 prompt，用户指定数量时遵循用户要求；单标签和局部补全只输出对应结果，不主动增加变体。流程不设置构思审阅环节。下面以 Claude Code 安装为例。
+它不绑定单一生图底模，也不直接生成图片，适合支持 Danbooru tag、自然语言或两者混合输入的 Anime 类图像模型。
+
+- 通过 Danbooru API 搜索、验证和获取关联 tag
+- 通过 MCP 接入 Claude Code 等支持 MCP/Skill 的 AI 客户端
+- 用自然语言表达动作、关系和复杂情绪，用 tag 固定具体可见细节
+- 默认保护 `search_posts` 查询，排除 explicit（`rating:e`）帖子
+
+下面以 Claude Code 安装为例。
 
 ## 环境要求
 

@@ -1,7 +1,7 @@
 {
   "name": "danbooru-tag-tools",
   "version": "1.0.1",
-  "description": "Claude Code 工具链：通过 Danbooru API 自动生成 AI 绘画 prompt",
+  "description": "Danbooru tag retrieval and prompt assembly tools for Anime image workflows",
   "main": "mcp-server/danbooru-mcp-server.js",
   "bin": {
     "danbooru-call": "scripts/danbooru-call.js"
