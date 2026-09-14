@@ -2,3 +2,8 @@ node_modules/
 .DS_Store
 *.log
 .env
+
+# local editor/agent backups — never ship these
+.codex-backups/
+*.bak
+*.before-*

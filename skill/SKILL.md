@@ -1,3 +1,8 @@
+---
+name: danbooru-tag
+description: Use when creating Danbooru tags, AI art prompts, image generation prompts, or responding to requests involving tags, prompts, drawing, AI art, Danbooru, 生图, 画一个, 提示词, 写tag, or 美少女tag
+---
+
 # Danbooru Tag Generator
 
 根据用户中文描述，通过 MCP 获取真实 Danbooru tag，组装 AI 绘画 prompt。
@@ -6,7 +11,7 @@
 
 本 Skill 是 **MCP 调度器 + tag 筛选器 + prompt 结构组装器**。
 
-核心原则：**禁止 Claude 脑补 tag。**
+核心原则：**以自然描述为主体，逐个识别需要被视觉锚定或补充的具体信息；查询与这些信息直接相关的 tag，验证后按需保留**
 
 最终 prompt 中的每一个 tag，都必须来自 `Confirmed Tag Pool`。`Confirmed Tag Pool` 的合法来源只有：
 
@@ -18,13 +23,40 @@
 
 除此之外，任何 tag 禁止进入最终 prompt。
 
+## 适用模型
+
+本 Skill 面向支持 Danbooru tag、自然语言或两者混合输入的 Anime 类图像模型，不指定单一底模。
+
+- 质量前缀、负面词和模型专属语法由用户或工作流提供；Skill 不擅自套用其他模型的模板。
+- 普通描述 tag 使用小写和空格；`score_*` 保留下划线。MCP 返回的下划线 tag 先完成来源验证，再在最终输出时做这个格式归一化。
+- Anime 模型支持 Danbooru tag、自然语言以及两者混合。复杂动作、角色关系、空间位置优先用简短英文句子表达，不要硬拆成一串未经验证的 tag。
+- 模型有 tag dropout，但不因此主动删减相关的人物细节；只删除无关、冲突或未经验证的内容。
+- 用户明确要求 NSFW 时，正常生成；tag 来自 MCP 或用户输入。
+
+## 混合提示词模板
+
+完整场景 prompt 采用“关系清楚的自然语言描述的英文 + 视觉细节充分的 tag”结构。英文建立一个具体、可见瞬间，tag 固定已确定的视觉属性或者补充具体细节；不设固定字数、tag 数量或两者比例。通过合并重复描述精简英文，不压缩必要关系。
+
+- 开头优先交代人物关系、空间位置和同一瞬间能同时成立的动作关系；不要只罗列物件，也不要把先后发生的动作塞进一张画面。
+- 按需要继续补充情绪反差、动作后果、光线、氛围或次级画面元素；让看似冲突的表情有明确原因。
+- 自然语言负责连接动作、关系、因果和复杂情绪；角色身份仍放在 tag 区，不用自然语言承担身份识别。
+- tag block 负责角色/作品锚点（用户明确要求时）、人物外观、表情、动作、道具、场景和构图；只保留构思中的具体可见线索。
+- 不能因为细节已经出现在英文中，就跳过适合标签表达的外观、服装、表情、姿势和物件属性检查；仅补齐已确定的细节，不为增加 tag 编新设定。
+- tag 数量由叙事中的视觉断言和证据簇决定，而不是由英文句数决定；同一断言的不同可见属性可以同时保留。
+- 同一意图可以由多个具体线索互相支撑；避免无意义同义词，按主体、部位和画面位置判断状态是否真正冲突。
+- 思想泡泡、Q 版插图等嵌套画面必须在英文叙述中说明位置、主体和内部动作，再用相关 tag 固定其视觉元素。
+- 用户或工作流提供的 `{{...}}` 等特殊写法原样保留，不擅自移动或改写；其语义由实际工作流决定，不一概认定为占位符或加权语法。语法本身不作为 Danbooru tag 验证。
+- 不因 tag 数量、固定词序或二次扩展破坏已经成立的叙事；可添加必要的 tag 来补充视觉细节，但不为凑数量编新设定。
+
+需要查看完整的英文叙事与 tag block 组装示例时，读取 [references/full-prompt-example.md](references/full-prompt-example.md)。该示例仅用于说明组装方式，不是固定模板、默认 tag 词库或已验证的 Confirmed Tag Pool。
+
 ---
 
 ## 最高原则
 
-**所有 tag 来自 MCP，不脑补。围绕用户给的主题，从 confirmed_tag_pool 中全面补全。严格遵守本 Skill 中的每一条规则，不跳过、不简化、不自行判断。**
+**所有 Danbooru tag 来自合法来源，不脑补。人物必须是画面主体；场景、天气和环境可以作为辅助内容。围绕人物尽可能细化，不设 tag 数量上限。**
 
-**必须先构思一张完整的画面，再查MCP验证tag。** 禁止直接从用户描述中提取tag，必须先构思场景、人物、动作、表情、道具、光线、氛围等所有要素。
+**要求先构思好完整的画面再查 MCP；单标签或局部补全直接查询相关概念。构思时人物优先，但不禁止地点、天气、背景或环境。**
 
 ---
 
@@ -38,158 +70,149 @@
 
 ### Gate 2: 冲突检查
 
-删除冲突 tag：long_hair + short_hair、day + night、sunlight + moonlight 等（除非用户要求混搭）。
+先确认属性属于哪个主体、部位、画面区域和时刻，再删除不能同时成立的状态。不同人物或主画面与思想泡泡可以具有不同属性；强颜欢笑与流泪也可以共存，英文需说明这种表情的关系。不得机械按词对删除。
 
-### Gate 3: 维度覆盖
+### Gate 3: 内容覆盖与画面一致性
 
-逐层检查每段 prompt：
-- 画面中有人吗？→ character
-- 长什么样？→ appearance
-- 什么表情？→ expression
-- 穿什么？→ outfit
-- 在做什么？→ pose
-- 在哪？→ scene
-- 什么光线？→ lighting
-- 构思中的每个要素都有对应tag吗？→ 完整性
+只检查用户明确要求，以及 Step 0 中主动确定并且需要看见的内容。
 
-哪层答不上来就说明缺失，必须补充。
+完整场景必须满足：
+
+- 核心主体和用户指定身份没有遗漏；
+- 主要动作、互动关系和空间位置清楚；
+- 同一画面中的动作能够同时成立；
+- 关键细节由英文、已验证 tag 或两者表达；
+- 未涉及的内容不因为缺少而自动补充。
+
+关系完整与标签细节分开验收：英文说明谁对谁做什么、位置和归属；只有被选作视觉锚定目标、且适合标签表达的视觉属性才需要完成来源与筛选检查。
+
+同时检查谁拿着什么、物体在哪里、动作能否同时成立；表情是否有可见依据；嵌套画面的主体与效果是否归属明确；构图是否容纳关键细节。上半身构图中不可见的裙摆不计为已实现细节；不为了展示可选服装设定改变用户指定构图。
 
 ### Gate 4: Prompt 差异
 
-每段 prompt 之间必须有明显差异。如果无法保证差异，减少段数而不是编 tag。
+仅在用户要求多个变体时检查差异：每组 tag 必须在实际画面内容上产生明显差异（例如镜头、姿势、服装、场景或光影），不能只靠发色或瞳色区别；单个 prompt 不执行本关。
 
 ### Gate 5: 输出格式
 
 ```markdown
 ### Prompt N — 中文简介
 
-`tag1, tag2, tag3, ...`
+Concise English narrative establishing one coherent visual moment, preserving necessary relationships without repeating them.
+
+`validated tags`
 ```
 
-<!-- English detail 暂时关闭
-English detail 直接跟在 tag 后面，1-2 句英文，只补光影/氛围，不重复 tag 已覆盖的内容。
--->
+英文描述是 Anime 模型的 prompt 正文，不属于 tag pool；它应先建立完整叙事，再由 tag block 固定可见细节。长度按场景需要决定，只补充动作、角色关系、空间位置、光影、氛围和必要的因果，不重复堆砌已经表达清楚的 tag。
+对于完整 anime/character prompt，每段英文叙事为必填；自然语言不属于 `confirmed_tag_pool`，不能反向生成未经验证的 tag。
 
-不输出中文重点、解释说明、补全对照表、Confirmed Tag Pool 汇总。
+不输出中文重点、解释说明、补全对照表、Confirmed Tag Pool 汇总；用户需要负面 prompt 时另输出 `Negative prompt:`。
 
 ---
 
 ## 禁止行为
 
-- **直接从用户描述中提取tag，不先构思画面**
+- 完整场景未经构思就直接堆 tag；用户已有完整构想时沿用，不擅自另编剧情
 - 根据中文含义自己翻译 tag
-- 根据英文自然语言自己拼 tag
 - 根据经验写"看起来像 Danbooru"的 tag
 - 为达到 tag 数量补充未验证 tag
 - 把抽象氛围词伪装成 tag
-- **只写单个tag，不构思完整画面**（如只写"站立、呼吸"，不写具体场景和动作）
-
-如果用户表达抽象感觉（温柔、和平、电影感、精致），优先用 MCP 查真实 tag；无对应 tag 时写进 English detail，不写进 tag 区。
-
+- 把单标签、局部补全或提示词分析请求擅自扩展成完整场景生成
 ---
 
 ## MCP 工具
 
-- `mcp__danbooru__search_tags`：搜索标签（英文搜索，调用时 limit 设为 100）— 每次返回 1 个精确匹配 tag，只用于确认不确定的词
-- `mcp__danbooru__get_related_tags`：获取关联标签（带 overlap 分数，调用时 limit 设为 100）— 每次返回 30+ 个共现 tag，**主要扩展手段**
-- `mcp__danbooru__get_tag_info`：获取标签详情（类别、计数）
+- `mcp__danbooru__search_tags`：英文标签搜索，limit 最多 100；无通配符时先精确查询，空结果会退回模糊匹配。只有实际返回的名称得到验证，不能把近似结果当成原候选已存在。
+- `mcp__danbooru__get_related_tags`：最多 5 个锚点，limit 最多 100；逐个锚点分别查询，不是联合条件检索。当前返回字段 `overlap` 实际取自 `cosine_similarity`，不是概率或画面适配分数，不保证返回数量。
+- `mcp__danbooru__get_tag_info`：一次精确检查最多 10 个候选，返回类别、计数或未找到/错误状态；未找到与查询失败都不算验证成功。
 - `mcp__danbooru__search_posts`：搜索图片（默认不用，除非用户要求参考图）
 
 调用规则：
-- **优先用 `get_related_tags` 批量扩展**，不要逐个 `search_tags` 验证
-- `search_tags` 只用于：确认用户输入的不确定关键词、补充 `get_related_tags` 未覆盖的维度
-- 不允许中文搜索、不允许探索式调用、不允许重复查询已确认 tag
-- **必须覆盖所有基本维度**：outfit、scene、lighting、pose 不能遗漏
+- 优先复用合法来源；明确候选用 `get_tag_info` 批量验证，名称不确定时用 `search_tags` 找实际名称。
+- 只有仍存在具体视觉缺口时才用 `get_related_tags` 补候选，不为增加数量遍历相关词。
+- 不允许中文搜索、无目标探索或重复查询已确认 tag；候选可以提出待查，但验证前不能进入最终 tag 区。
+- 只查询本次请求中已经确定、且需要视觉锚定的具体概念；没有相关需求时不主动补齐。
+- 锚点优先选择自然描述中最关键、最需要确认或补充的概念；不因概念属于人物、场景或其他内容而改变查询策略。
 
 ---
 
 ## 生成流程
 
-### Step 0: 构思画面（必须先于所有步骤）
+### Step 0: 确定范围与画面构思
 
-**在查MCP之前，必须先构思一张完整的画面。** 这是最重要的步骤，决定了最终prompt的质量。
+单标签或局部补全直接确定相关概念；分析现有提示词时只分析。完整场景先确定一个可见瞬间，再围绕它补细节。用户已有完整构想时保留其结构与意图。完整场景在内部完成画面理解和构思，然后直接进入查询、筛选、组装和输出；只有用户要求互相矛盾或缺少无法合理确定的核心信息时才提问。
 
-构思必须包含以下要素，缺一不可：
+### 核心读法与可见证据
 
-#### 场景要素
-- 在哪？（室内/室外/具体地点：公园、海边、咖啡厅、图书馆、天台等）
-- 什么时候？（白天/夜晚/季节：春日午后、夏夜、冬日傍晚等）
-- 环境细节？（周围有什么物体、植物、建筑：长椅、树木、书架、窗户等）
+人物保持视觉主体；允许事件、道具和因果组织人物表现。先用自然语言确定观众需要读懂的具体状态、动作和关系，再只补足让这一瞬间成立的必要信息；不为填满字段添加设定。
 
-#### 人物要素
-- 有谁？（一个人/多人）
-- 在干嘛？（具体动作，不是抽象概念：坐在长椅上、站在海边、躺在草地上）
-- 什么姿势？（站/坐/躺/走/跑/弯腰/回头）
-- 表情如何？（开心/害羞/专注/放松/惊讶/悲伤）
+- 核心读法：用一句中文说明观众应从画面读懂的具体状态或互动，不是抽象概念或情绪；明确谁在做什么、对谁、在哪里、是否同时成立。英文叙事应保留核心读法，tag block 固定可见细节。
+- 可见证据：为核心读法安排有分工的主动作、表情或身体细节，以及人物、对象、道具之间的关系；写清主体、部位、动作或位置。
+- 关键构图：哪些证据必须同时看清？据此确定角度、取景与主体大小，不先套构图 tag 再补救。明确视线和手部归属；倾斜方向等易混淆关系以画面坐标说明。
+- 必要外观：保留角色身份及本次明确选择、实际可见的外观和服装细节。
+- 嵌套画面仅在需要时说明位置、主体和内部动作。
+- 复杂关系必须在英文叙事中说明，tag block 只固定可见细节；不因 tag 数量或顺序而改变关系。
 
-#### 道具要素
-- 手里拿着什么？（杯子/书/手机/乐器/食物/花）
-- 身上穿着什么？（LoRA处理，但可以补充配饰：围巾、手套、耳机、发饰）
-- 周围有什么？（家具/食物/植物/装饰品）
+例如“认真模仿小猫、像在无声交流”的证据可以是蹲低面对猫、双手收在膝前、目光相接和头部倾斜呼应；构图应同时看清两张脸与蹲姿。静态图可以表达姿态呼应，不要求它证明谁先动、谁随后模仿。此例是构思方法，不是固定配方或标签来源。
 
-#### 光线要素
-- 什么光线？（阳光/月光/灯光/逆光/侧光）
-- 光线从哪来？（从左/从右/从上/从背后/从窗户）
-- 光线效果？（柔和/强烈/温暖/冷调/光束/光晕）
+完整场景构思只需确定一个连贯、可见、能够同时成立的画面瞬间。需要哪些背景、外观、道具、光线或镜头信息，由自然描述、用户要求和画面可见性决定；不强制填写清单，也不因某类信息缺失而补设定。
 
-#### 氛围要素
-- 什么氛围？（温馨/孤独/浪漫/热闹/宁静/神秘）
-- 有什么特效？（花瓣飘落/雪花/雨滴/光晕/烟雾/蒸汽）
 
 ### 构思示例
 
 **用户说："爱音在雪天公园"**
 
 **完整构思：**
-爱音一个人坐在公园长椅上，双手捧着热咖啡，呼出白气。她微笑着看向观众，脸颊因为寒冷而泛红。围巾还没摘，手套放在旁边。冬日午后的阳光透过树枝洒下来，雪花轻轻飘落，热饮冒着蒸汽。周围是积雪的树木和安静的公园。
+- 核心读法：爱音坐在公园的长椅上，手里捧着热饮，呼出白气，阳光透过树枝洒在她身上，周围飘着雪花。
+- 可见证据：
+  - 爱音坐在长椅上，双手捧着咖啡杯，呼出白气。
+  - 阳光透过树枝洒在她身上，形成光斑。
+  - 周围有雪花飘落，地面覆盖积雪。
+-  她穿着围巾和冬季外套，头发被风吹起。
+-  画面构图为上半身特写，背景为公园的树木和长椅。
+-  必要外观：爱音的发色为棕色，瞳色为蓝色，穿着冬季外套和围巾。
+-  复杂关系：爱音的动作和表情显示她在享受温暖的饮品，同时感受寒冷的雪天。
+-  关键构图：上半身特写，背景为公园的树木和长椅，阳光透过树枝洒在她身上，形成光斑。
 
 ---
 
-### Step 1: 从构思中提取语义轴
 
-**从构思中提取所有需要的元素**，按9层结构分类：
+### Step 1: 从自然描述中提取待表达信息
 
-- quality: masterpiece, best_quality, highres, absurdres
-- character: 1girl, solo
-- appearance: 发色、瞳色、发型（LoRA处理）
-- expression: blush, smile, looking_at_viewer
-- pose: sitting, holding, breath
-- prop: cup, mug, steam, scarf
-- scene: park, bench, tree, snow, outdoors, cold, wind
-- lighting: sunlight, light_rays, shadow
-- composition: upper_body, depth_of_field
+-以自然描述为唯一出发点。先理解用户要求和观众需要看见的瞬间；只有在请求宽泛且画面无法成立时，才补充与主题一致、可见且必要的细节。用户已明确或已有完整构想时，不擅自补充新设定。
+-从描述中提取已经确定信息。能够用 tag 准确锚定的概念，分别作为独立查询目标；动作关系、空间位置、视线、因果和复杂情绪优先保留在英文叙事中；
+-每个查询目标只解决一个明确概念。找到准确 tag 后停止该概念的查询；没有准确 tag 时保留英文，不为了补足结构继续搜索。
+-每个查询目标必须有明确的可见证据，不能只依赖抽象概念或情绪。证据可以是动作、互动、空间位置、光影、氛围或因果关系；不因 tag 数量或顺序而改变关系。
 
-**注意：语义轴来自构思，不是直接从用户描述提取。**
+### Step 2: 为视觉锚定目标准备查询候选
 
-### Step 2: 从构思中提取关键词
+-不要从构思中批量提取关键词，也不要把自然语言逐词翻译成 Danbooru tag。
+-回到用户的自然描述和已经确定的画面，挑出确实需要被 tag 锚定或补充的具体视觉概念。每个概念分别准备一个或少量英文检索候选，候选仅用于 MCP 查询，未经验证不能进入最终 prompt。
+-动作关系、空间位置、视线、因果和复杂情绪通常直接写进英文，不因为其中出现了相关英文词就强行查询 tag。
+-一个概念最终可能没有准确 tag，也可能对应多个有独立作用的 tag。找到准确表达后停止该概念的检索；没有准确表达时保留英文，不为了继续补充而反复换词。
 
-**从构思中提取需要查MCP验证的关键词**，不是从用户描述提取：
+一个查询目标应当明确：
+- 要确认或补充的具体视觉信息是什么；
+- 它属于哪个主体、部位或对象；
+- 当前画面中是否能够看见；
+- 为什么需要 tag，而不是只用英文表达。
 
-- 场景词：park, bench, tree, snow（从"公园长椅树木积雪"提取）
-- 动作词：sitting, holding, breath（从"坐在长椅上捧着热饮呼白气"提取）
-- 道具词：cup, mug, steam, scarf（从"咖啡杯蒸汽围巾"提取）
-- 光线词：sunlight, light_rays, shadow（从"阳光透过树枝洒下来"提取）
-- 氛围词：cold, wind（从"寒冷飘雪"提取）
+### Step 3: 为视觉锚定目标选择查询
 
-### Step 3: 制定 MCP 查询计划
+只为 Step 2 已确定、确实需要视觉锚定的概念安排 MCP 查询，不为完整场景建立关键词清单，也不预先规划固定调用次数。
 
-MCP 查询必须覆盖所有基本维度：character、appearance、expression、outfit、pose、scene、lighting。不能只查角色相关 tag。
+每个查询目标单独处理：
 
-查询策略：
+- 候选名称明确时，优先用 `get_tag_info` 验证。
+- 名称、拼写或表达方式不确定时，用 `search_tags` 找实际名称，再用 `get_tag_info` 核对。
+- 没有明确候选、但确实存在具体视觉缺口时，才使用 `get_related_tags` 补充候选。
+- 已经在合法来源中的 tag 直接复用，不重复查询。
+- 一次批量验证只用于同一个概念的少量候选，不把无关概念混在一起。
 
-**A. 主题有明确对应核心 tag**（如校服→school_uniform，和服→kimono）
-- `search_tags` 确认核心 tag（1 次）
-- `get_related_tags([核心tag, 1girl])` 批量扩展（1 次，拿 60-90 个）
-- `get_related_tags` 补充缺的维度（1-2 次）
+找到准确且有独立作用的 tag 后，停止该概念的查询。没有准确 tag 时，将概念保留在英文中，不为了继续补充而反复换词。
 
-**B. 主题不确定**（如"地雷系"、"昭和偶像"）
-- `search_tags` 搜最不确定的候选词（1 次）
-- `get_related_tags` 批量扩展（1-2 次）
+`get_related_tags` 只能从用户输入或当前构思中的原始锚点出发；关联结果不能自动成为新的查询锚点，不进行 H2 或二次扩展。
 
-**C. 简单主题**（如"美少女"）
-- `get_related_tags([1girl])` 批量扩展（1-2 次）
-
-总调用次数：3-5 次 `get_related_tags` 为主，`search_tags` 最多 2-3 次。
+查询失败、未找到和找到不适用的 tag 必须区分处理；不得把查询失败误判为 tag 不存在。
 
 ### Step 4: 执行 MCP 查询
 
@@ -197,47 +220,72 @@ MCP 查询必须覆盖所有基本维度：character、appearance、expression�
 
 ### Step 5: 建立 Confirmed Tag Pool
 
-将所有合法来源的 tag 汇入 `confirmed_tag_pool`。来源标记：mcp_search / mcp_related / mcp_verified / user_input / auto_rule。
+将所有合法来源的 tag 汇入 `confirmed_tag_pool`。来源标记：mcp_search / mcp_related / mcp_verified / user_input / auto_rule / model_profile。
 
 ### Step 5.5: Pool 完整性检查
 
-建立 pool 后，按 9 层结构检查每层可用 tag 数量：
-- quality: ≥2
-- character: ≥3
-- 发色: ≥5
-- 瞳色: ≥5
-- 发型: ≥5
-- expression: ≥6
-- 主服装: ≥5
-- 细节/配饰: ≥10
-- pose: ≥5
-- scene: ≥5
-- lighting: ≥2
+对已确认构思中的具体视觉属性逐项检查，不因它已在英文中出现而跳过：
+- 已有合法、准确的 tag：保留有独立作用的细节，避免只剩宽泛大类。
+- 尚未验证且适合标签表达：定向查证候选，可为了补充而换词，但不为增加数量遍历相关词。
+- 无准确对应，或必须依赖关系表达：保留英文，不使用近似但改变含义的标签替代。
+-  无法在画面中看见的属性：删除候选，不为凑数量补充无关 tag。
+-  画面中有可见证据，但不适合标签表达的属性：保留英文，不使用近似但改变含义的标签替代。
 
-某层不足时，立即补充 MCP 查询，不得跳过。
+### Step 6: 按视觉作用筛选 MCP 返回结果
 
-### Step 6: 筛选 MCP 返回结果
+MCP 返回的 tag 只是候选，不因命中、计数、热度或 overlap 较高就自动加入 prompt。
 
-将 MCP 返回的 tag 按维度分类：character, appearance, expression, outfit, clothing_detail, accessory, pose, hand_action, prop, scene, background_element, composition, lighting, atmosphere, style, quality
+逐个对照 Step 2 的查询目标和自然描述，只有同时满足以下条件的 tag 才能保留：
 
-只过滤以下情况：
-- artist tag（除非用户明确要求）
-- copyright / character tag（除非用户明确要求）
-- 与用户明确要求冲突的 tag
-- NSFW tag（除非用户明确要求且安全规则允许）
+- 准确对应某个已经确定的视觉概念；
+- 在当前画面和取景中确实能够看见；
+- 明确属于正确的主体、部位、对象或画面区域；
+- 能增加独立的视觉信息，而不是宽泛词、同义词或重复表达；
+- 不改变用户原意，也不与英文叙事或其他 tag 冲突。
 
-**MCP 返回的 tag 只要不违反以上 4 条，全部保留，不得自行判断删除。**
+`get_related_tags` 返回的是共现候选，不代表同义或必然适合当前画面。关联结果必须重新对照自然描述筛选，不能因为 overlap 较高就保留，也不能直接作为新的查询锚点。
 
-### Step 7: 组装 prompt
+处理结果时：
 
-从 `confirmed_tag_pool` 中按 9 层结构逐层选取：
+- 有准确作用且来源合规的 tag：保留。
+- 无关、不可见、重复或冲突的 tag：删除。
+- 含义不确定或没有准确对应的 tag：不使用，改由英文表达，必要时再进行定向验证。
+- 对一次查询已经返回的候选进行一轮完整筛选，择优保留有独立作用的 tag；筛选完成后停止，不为增加数量继续遍历相关词。
+- 不因 tag 数量或顺序而改变关系；同一概念的不同可见属性可以同时保留。
 
-1. 先列每层可用 tag 清单（发色有哪些、配饰有哪些、场景有哪些）
-2. 每层从中选取相关 tag，不跳过任何层
-3. 覆盖全部维度后自然达到 35+ 个 tag
-4. 低于 35 说明维度遗漏，回去检查哪层没覆盖，不得添加无关 tag 凑数
+### Step 7: 组装 Prompt
 
-**关键：组装时要回顾Step 0的构思，确保构思中的每个要素都有对应的tag。**
+先写自然语言，再附加 tag block。自然语言是主体，tag 只负责锚定其中已经确定、具体且适合标签表达的视觉细节。
+
+1. 先根据用户描述和本次构思，写出一个具体、连贯、能够在同一画面中成立的英文瞬间。
+2. 英文必须说明必要的主体、动作、关系、空间位置、视线、因果和复杂情绪；不能把这些关系压缩成孤立 tag。
+3. 将 Step 6 保留的 tag 放在英文叙事之后，只选择有独立视觉作用且来源合规的 tag。
+4. 不因为某个细节已经写进英文，就自动添加对应 tag；也不因为某个 tag 已存在，就删掉英文中不可替代的关系或因果。
+5. 没有准确 tag 的细节保留在英文中，不使用近似 tag 改变原意。
+6. 删除无关、重复、冲突、不可见或没有信息增量的 tag；不设固定数量、比例、顺序或长度。
+7. 不在组装阶段添加新的剧情、人物设定或未确定的视觉细节。
+8. 仅在用户要求多个变体时共享 Anchor，并确保各段在实际画面内容上产生明显差异，不能只靠发色或瞳色区别。
+9. 按自然描述和画面需要挑选 Step 6 中的 tag 进行细节补充，不为凑数量或增加 tag 而添加无关内容。
+
+最终格式固定为：
+
+```markdown
+### Prompt N — 中文简介
+
+English narrative establishing one coherent visual moment.
+
+`validated tags`
+```
+
+## 完整混合 Prompt 示例（仅供参考）
+
+以下示例只展示英文叙事与 tag block 的组装方式，不是固定模板、默认 tag 词库或 `confirmed_tag_pool`。实际请求仍需根据当前自然描述重新查询、验证和筛选。
+
+```text
+Sitting across the table from the viewer on a date, Mari holds chopsticks with a slice of beef over the steaming spicy broth, forcing an elegant smile while her teary eyes, sweat and trembling lips betray that the spiciness is destroying her inside, a thought bubble above her head showing a chibi version of herself breathing fire and writhing in agony. {{warm color theme}}, mari (blue archive), blue archive, 1girl, solo, pov, across table, looking at viewer, orange hair, long hair, hair between eyes, hair flower, animal ears, animal ear fluff, yellow halo, halo, blue eyes, tearing up, blush, forced smile, wavy mouth, furrowed brow, sweat, flustered, trembling, white knit sweater, long sleeves, knit fabric, beige long skirt, casual clothes, chopsticks, holding food, sliced meat, hotpot, spicy food, steam, boiling broth, chili peppers, restaurant, wooden table, night, warm lighting, date, thought bubble, chibi inset, breathing fire, >\\\_<, fire, flames, upper body
+```
+
+其中 `{{warm color theme}}` 和 `>\\\_<` 等特殊写法按用户或工作流语义原样保留，不作为普通 Danbooru tag 验证；示例中的其他 tag 也不能直接复制到新请求，实际使用时仍需重新确认来源和画面作用。
 
 ### Step 8: 输出前执行 FINALIZATION_GATE
 
@@ -248,58 +296,54 @@ MCP 查询必须覆盖所有基本维度：character、appearance、expression�
 Anchor = 用户请求的核心，不可协商。
 
 - Anchor 必须出现在每段 prompt 中
-- Anchor 包含 2-6 个 tag
+- Anchor 保留核心要求；其中的 tag 无固定数量，复杂关系由英文保留
 - 不要把可选细节放入 Anchor
 - 不要把随机发色/瞳色/普通表情放入 Anchor，除非用户明确要求
-- Anchor 必须来自 confirmed_tag_pool
+- Anchor 中的 tag 必须来自 confirmed_tag_pool；英文关系不属于 tag pool
 
 ---
 
 ## Prompt 变体
 
-默认输出 3 段 prompt，用户指定数量时按用户要求。
-
-每段 prompt 必须共享 Anchor。每段 prompt 之间必须有明显差异（镜头、姿势、服装、场景、光影等），不能只靠发色瞳色区别。
-
-根据 confirmed_tag_pool 中的 tag 自由组合，不要套固定模板。
-
-同一角色模式：用户说"同一个角色、同一人设、保持一致"时进入。锁定发色、瞳色、发型、核心服装，其他维度自由变化。
+-完整场景默认输出 3 段 prompt，用户指定数量时按用户要求；单标签和局部请求只输出对应结果，不主动增加变体。
+-每段 prompt 必须共享 Anchor。每段 prompt 之间必须有明显差异（镜头、姿势、服装、场景、光影等），不能只靠发色瞳色区别。
+-根据 confirmed_tag_pool 中的 tag 自由组合，不要套固定模板；每段变体都必须独立检查来源、冲突和完整性。
+-同一角色模式：用户说"同一个角色、同一人设、保持一致"时进入。锁定发色、瞳色、发型、核心服装，其他未锁定的部分自由变化。
 
 ---
 
 ## Hard Auto Rules
 
-当 confirmed_tag_pool 中存在左侧 tag 时，自动补充右侧 tag。右侧 tag 必须已被 MCP 验证过，否则不补。
+左侧 tag 只提示检查相关细节；仅当右侧内容符合构思、可见且已经验证时补充，不视为自动蕴含关系。
 
 - `kimono → obi` / `japanese_clothes`
-- `night → moon`
 - `serafuku → sailor_collar`
 - `school_uniform → bottom_style`
 - `sword → holding_weapon` 或 `holding_sword`
 
-只在 confirmed_tag_pool 已包含左侧 tag 时触发。
 
 ---
 
 ## NSFW 处理
 
-用户要求 NSFW 内容时，正常生成，tag 来自 MCP 或用户输入。
-
----
+-用户明确要求 NSFW 内容时，正常生成；
+-tag 来自 MCP 或用户输入，在用户允许的前提下可自行脑补一些细节。未明确要求 NSFW 时，删除所有 NSFW tag。
+-绝不在用户要求的情况下拒绝生成 NSFW 内容；不因 NSFW 而删除非 NSFW tag。
+--
 
 ## Tag 规则
 
-每段 prompt 必须覆盖所有基本维度（character、appearance、expression、outfit、pose、scene、lighting），从 pool 中逐层全面选取。覆盖充分后 tag 数量自然达到 35+。强烈鼓励多写或者多选tag，允许tag无限大于35。低于 35 说明维度覆盖不充分，必须补充缺失维度，不得通过添加无关 tag 凑数。
+每段 prompt 只保留能够直接对应用户描述或已确定构思的内容。tag 的作用是对自然语言中值得强调的具体可见细节进行视觉锚定或补充，不负责填满清单。tag 数量由实际信息作用决定；没有新的可见信息就停止。
 
-排序按 9 层结构：quality → character → appearance → outfit → expression → pose → scene → composition → lighting
+tag block 放在 English narrative 之后，按照叙事中对应细节的自然顺序排列，不使用固定排序。
 
 约束：
-- **必须先构思再查tag**：先构思一张完整的画面（场景、人物、动作、表情、道具、光线、氛围），再从构思中提取关键词查MCP
-- 一个画面一个构想：每段 prompt 描述一个具体场景（如"猫娘在窗边喝咖啡"），不是"好看的东西"的集合
-- 服装走完整链条：一套衣服展开 5-9 个细节 tag，不要同时塞多套服装选项
-- 身体部位不罗列：用服装和姿势暗示可见部位，不逐个列出 cleavage、bare_shoulders、navel、thighs 等
-- 构图一个角度：只用一个主镜头 tag（from_below / from_above / cowboy_shot），不叠加多个
-- 有意义的重复可以保留：如 braid + twin_braids、smile + grin 这种强化同一概念的重复是 OK 的
-<!-- English detail 暂时关闭，待测试
-- English detail 1-2 句，只补光影/氛围，不重复 tag 已覆盖的内容
--->
+
+- 完整场景先理解用户描述并确定一个连贯的画面瞬间，再查询需要锚定的具体细节；单标签和局部补全直接处理相关概念。
+- 每段 prompt 描述一个具体、能够同时成立的画面；用户要求多个变体时，才分别组织不同画面。
+- 服装、配饰、道具和环境只在用户要求、构思需要或能提供明确视觉信息时加入，不规定数量。
+- 不机械罗列身体部位；用户明确要求或画面确实需要时，可以使用准确且已验证的相关 tag。
+- 避免互相冲突的镜头和构图描述；除非用户明确要求，否则选择能够服务当前画面的主要视角。
+- 只有在重复能提供不同的视觉强化时才保留；无信息增量的同义词和重复 tag 删除。
+- 普通 tag 使用小写和空格；只有 `score_*` 保留下划线；角色名和作品名保留模型可识别的原文。
+- 完整 anime/character prompt 先输出足够清楚的 English narrative，再输出 tag block。自然语言负责动作、关系、空间、因果和复杂情绪；tag 只补充准确的视觉锚点。

@@ -1,10 +1,17 @@
 {
   "name": "danbooru-tag-tools",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Claude Code 工具链：通过 Danbooru API 自动生成 AI 绘画 prompt",
   "main": "mcp-server/danbooru-mcp-server.js",
+  "bin": {
+    "danbooru-call": "scripts/danbooru-call.js"
+  },
   "scripts": {
-    "start": "node mcp-server/danbooru-mcp-server.js"
+    "start": "node mcp-server/danbooru-mcp-server.js",
+    "test": "node test/smoke.js"
+  },
+  "engines": {
+    "node": ">=16"
   },
   "keywords": ["danbooru", "mcp", "claude-code", "ai-art", "prompt"],
   "license": "MIT"
