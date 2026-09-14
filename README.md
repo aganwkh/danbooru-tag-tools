@@ -1,6 +1,6 @@
 # Danbooru Tag Tools
 
-面向 Anime 图像工作流的 Danbooru 标签检索与提示词组装工具。它提供本地 MCP 服务器、配套 Skill 和 CLI：从自然语言中识别需要确认的视觉概念，查询真实 Danbooru tag，再由 AI 客户端组装英文叙事与已验证的 tag block。
+面向 Anime 图像工作流的 Danbooru 标签检索与提示词组装工具。它提供本地 MCP 服务器、配套 Skill 和 CLI：为每张画面独立构思并检索 tag，挑选后直接组装英文叙事与 tag block，无需维护标签池或重复验证。支持用检索结果丰富构思，并在多组方案之间拉开实际画面差异。
 
 它不绑定单一生图底模，也不直接生成图片，适合支持 Danbooru tag、自然语言或两者混合输入的 Anime 类图像模型。
 
