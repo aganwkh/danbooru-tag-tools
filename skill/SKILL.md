@@ -32,10 +32,10 @@ description: Create, refine, or analyze Danbooru-based illustration prompts usin
 每张完整场景都根据自己的构思调用 MCP，搜索相关 tag，挑选后直接用于该张 prompt。不以其他组的检索结果代替本张检索；
 一张图的检索可以包含多次必要调用，按工具支持的方式组织查询，不要求每个细节单独查询，也不要求所有属性都找到 tag。
 
-- `mcp__danbooru__search_tags`：用英文候选搜索标签，采用实际返回的名称。
+- `mcp__danbooru__search_tags`：用英文候选搜索标签，采用实际返回的名称。可用 `category` 限定类别（general／character／copyright／artist／meta）；返回结果可能包含 `is_deprecated` 的废弃 tag（post_count 为 0），组提示词时须剔除。
 - `mcp__danbooru__get_related_tags`：需要寻找相关表达时使用。结果只是候选，按本张构思挑选，不自动沿关联结果继续扩展，不做 H2／二次扩展。
 - `mcp__danbooru__get_tag_info`：仅在名称或含义需要核实时使用；搜到且适用的 tag 不再重复验证。
-- `mcp__danbooru__search_posts`：仅在用户需要参考图时使用。
+- `mcp__danbooru__search_posts`：仅在用户需要参考图时使用。默认返回全部评级、不做任何分级过滤；需要限定时主动传 `rating`（g／s／q／e）。
 
 可以根据中文构思准备英文检索词，但最终 tag 采用 MCP 返回名称和用户提供的 tag。没有准确结果时用英文表达，不必反复换词查证。围绕本张画面广泛检索，不满足于仅能表达大意的少量 tag；画面已得到充分、具体的表达与补充，继续搜索只会增加无关内容或无意义重复时停止。
 

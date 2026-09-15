@@ -7,7 +7,7 @@
 - 通过 Danbooru API 搜索、验证和获取关联 tag
 - 通过 MCP 接入 Claude Code 等支持 MCP/Skill 的 AI 客户端
 - 用自然语言表达动作、关系和复杂情绪，用 tag 固定具体可见细节
-- 默认保护 `search_posts` 查询，排除 explicit（`rating:e`）帖子
+- `search_posts` 返回全部评级结果，不做默认过滤；可按需传 `rating` 限定
 
 下面以 Claude Code 安装为例。
 
@@ -121,11 +121,11 @@ echo '{"query":"kimono"}' | node scripts/danbooru-call.js search_tags -
 
 ### 内容分级（search_posts）
 
-Danbooru 含成人内容。`search_posts` **默认排除 explicit（`rating:e`）帖子**，避免普通标签查询直接返回露骨原图：
+`search_posts` **默认不做任何分级过滤**，返回全部评级结果：
 
-- 默认等价于在查询中追加 `-rating:e`；
-- 显式传 `rating`（`g`/`s`/`q`/`e`）时按该评级过滤；
-- 确需包含 e 级内容时，传 `allow_explicit: true`，或在 `tags` 里自行写明 `rating:e`。
+- 不传 `rating` 时，查询不追加任何 `rating` 条件；
+- 需要限定时传 `rating`（`g`/`s`/`q`/`e`），即按该评级过滤；
+- 也可在 `tags` 里自行写明 `rating:e` 等条件。
 
 ## 测试
 

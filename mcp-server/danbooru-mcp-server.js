@@ -34,6 +34,15 @@ const CATEGORY_NAMES = Object.freeze({
   4: "character",
   5: "meta",
 });
+// Danbooru's `search[category]` only accepts the NUMERIC id, not the name.
+// Passing a name (e.g. "character") makes the API return an empty array.
+const CATEGORY_IDS = Object.freeze({
+  general: 0,
+  artist: 1,
+  copyright: 3,
+  character: 4,
+  meta: 5,
+});
 const VALID_CATEGORIES = new Set(Object.values(CATEGORY_NAMES));
 const VALID_RATINGS = new Set(["g", "s", "q", "e"]);
 
@@ -64,21 +73,20 @@ function requestLimit(value, fallback, max = 100) {
   return Math.min(value, max);
 }
 
-// Pure helper: merge a user tag query with a rating into ONE Danbooru tag string.
-// Fixes the previous bug that emitted two duplicate `tags=` query params (Rails
-// then kept only the last one and dropped the user's tags).
-// Secure default: unless the caller opts in (allowExplicit) or already states a
-// rating, explicit (rating:e) posts are excluded.
-function buildPostTagString(tagQuery, rating, allowExplicit) {
+// Pure helper: merge a user tag query with an OPTIONAL rating filter into ONE
+// Danbooru tag string. Fixes the previous bug that emitted two duplicate
+// `tags=` query params (Rails then kept only the last one and dropped the
+// user's tags).
+//
+// NOTE: no default rating filter is applied. Results are returned in full;
+// callers may opt into filtering by explicitly passing `rating`.
+function buildPostTagString(tagQuery, rating) {
   const parts = tagQuery.split(/\s+/).filter(Boolean);
-  const alreadyHasRating = /(^|\s)rating:/i.test(tagQuery);
   if (rating !== undefined) {
     if (!VALID_RATINGS.has(rating)) {
       throw new Error("rating must be one of: g, s, q, e");
     }
     parts.push(`rating:${rating}`);
-  } else if (!allowExplicit && !alreadyHasRating) {
-    parts.push("-rating:e");
   }
   return parts.join(" ");
 }
@@ -177,14 +185,13 @@ const TOOLS = [
   },
   {
     name: "search_posts",
-    description: "Search Danbooru posts/images by tags. Explicit (rating:e) posts are excluded unless allow_explicit=true.",
+    description: "Search Danbooru posts/images by tags. Returns all rating levels by default with no filtering; pass rating to narrow results.",
     inputSchema: {
       type: "object",
       properties: {
         tags: { type: "string", description: "Tag search string (space-separated tags)" },
         limit: { type: "integer", minimum: 1, maximum: 100, description: "Max results (default 5)", default: 5 },
-        rating: { type: "string", enum: ["g", "s", "q", "e"], description: "Filter by rating" },
-        allow_explicit: { type: "boolean", description: "Include explicit (rating:e) posts. Default false.", default: false },
+        rating: { type: "string", enum: ["g", "s", "q", "e"], description: "Optional: narrow results to a single rating (g, s, q, e)" },
       },
       required: ["tags"],
     },
@@ -204,15 +211,15 @@ async function handleToolCall(name, args) {
       let tags = [];
       if (hasWildcard) {
         let url = `${DANBOORU_API}/tags.json?search[name_matches]=${encodeURIComponent(searchQuery)}&limit=${safeLimit}&order=count`;
-        if (category) url += `&search[category]=${encodeURIComponent(category)}`;
+        if (category) url += `&search[category]=${CATEGORY_IDS[category]}`;
         tags = await fetchTagList(url);
       } else {
         let url = `${DANBOORU_API}/tags.json?search[name]=${encodeURIComponent(searchQuery)}&limit=${safeLimit}&order=count`;
-        if (category) url += `&search[category]=${encodeURIComponent(category)}`;
+        if (category) url += `&search[category]=${CATEGORY_IDS[category]}`;
         tags = await fetchTagList(url);
         if (tags.length === 0) {
           url = `${DANBOORU_API}/tags.json?search[name_matches]=*${encodeURIComponent(searchQuery)}*&limit=${safeLimit}&order=count`;
-          if (category) url += `&search[category]=${encodeURIComponent(category)}`;
+          if (category) url += `&search[category]=${CATEGORY_IDS[category]}`;
           tags = await fetchTagList(url);
         }
       }
@@ -275,11 +282,11 @@ async function handleToolCall(name, args) {
       return { content: [{ type: "text", text: JSON.stringify({ results }, null, 2) }] };
     }
     case "search_posts": {
-      const { tags, limit, rating, allow_explicit } = args || {};
+      const { tags, limit, rating } = args || {};
       const tagQuery = requiredString(tags, "tags");
       const safeLimit = requestLimit(limit, 5);
       // Merge every constraint into a SINGLE tags parameter so nothing is dropped.
-      const mergedTags = buildPostTagString(tagQuery, rating, allow_explicit === true);
+      const mergedTags = buildPostTagString(tagQuery, rating);
       const url = `${DANBOORU_API}/posts.json?tags=${encodeURIComponent(mergedTags)}&limit=${safeLimit}`;
       const posts = await fetchJson(url);
       if (!Array.isArray(posts)) {

@@ -154,20 +154,17 @@ function createClient(framing) {
   });
 
   // ---- Group 4: pure helper buildPostTagString (regression for the duplicate tags= bug) ----
-  await test("buildPostTagString: default excludes explicit", () => {
-    assert.strictEqual(buildPostTagString("1girl", undefined, false), "1girl -rating:e");
+  await test("buildPostTagString: applies no default rating filter", () => {
+    assert.strictEqual(buildPostTagString("1girl", undefined), "1girl");
   });
-  await test("buildPostTagString: explicit rating merges into one string, no -rating:e", () => {
-    assert.strictEqual(buildPostTagString("1girl solo", "g", false), "1girl solo rating:g");
+  await test("buildPostTagString: explicit rating merges into one string", () => {
+    assert.strictEqual(buildPostTagString("1girl solo", "g"), "1girl solo rating:g");
   });
   await test("buildPostTagString: respects rating already written by user (no conflict)", () => {
-    assert.strictEqual(buildPostTagString("1girl rating:e", undefined, false), "1girl rating:e");
-  });
-  await test("buildPostTagString: allow_explicit=true adds nothing", () => {
-    assert.strictEqual(buildPostTagString("1girl", undefined, true), "1girl");
+    assert.strictEqual(buildPostTagString("1girl rating:e", undefined), "1girl rating:e");
   });
   await test("buildPostTagString: invalid rating throws", () => {
-    assert.throws(() => buildPostTagString("1girl", "x", false), /rating must be one of/);
+    assert.throws(() => buildPostTagString("1girl", "x"), /rating must be one of/);
   });
   await test("VALID_RATINGS contains g/s/q/e", () => {
     assert.deepStrictEqual([...VALID_RATINGS].sort(), ["e", "g", "q", "s"]);
