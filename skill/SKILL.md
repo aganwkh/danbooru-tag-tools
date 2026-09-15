@@ -66,6 +66,9 @@ English narrative describing this scene and its relationships.
 `tags separated by commas`
 ```
 
+在所有完整 Prompt 输出完毕后，必须新增一个 `### 💡 灵感拓展 (Inspiration Options)` 模块。基于本次 MCP 检索到的关联词汇，整理3组不同维度的推荐 Tag（例如：场景、动作、镜头等等），供用户后续替换或激发新构思。使用以下格式：
+- **[替换维度/主题]**：`tag_1, tag_2, tag_3` （简短中文说明该组 tag 适合替换画面中的哪部分）
+
 - 普通 tag 使用小写和空格，`score_*` 保留下划线；角色名、作品名保留模型可识别的原文。tag 区放在英文之后，不强制排序、数量或英文长度。
 - 用户或工作流提供的 `{{...}}` 等特殊语法原样保留，不擅自移动或改写。
 - 质量前缀、负面词和模型专属语法遵从用户或工作流，不擅自套用其他模型模板；需要负面提示词时另列 `Negative prompt:`。
